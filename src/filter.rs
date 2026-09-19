@@ -1,6 +1,6 @@
 use num_traits::{Float, FloatConst};
 
-use crate::processor::Processor;
+use crate::{denormals::Denormal, processor::Processor};
 
 pub struct FirstOrderLowPass<F: Float> {
     alpha: F,
@@ -28,7 +28,7 @@ where
 impl<F: Float> Processor<F> for FirstOrderLowPass<F> {
     #[inline]
     fn process_sample(&mut self, sample: F) -> F {
-        self.y = self.y + self.alpha * (sample - self.y);
+        self.y.assign_flush(self.y + self.alpha * (sample - self.y));
         self.y
     }
 }
