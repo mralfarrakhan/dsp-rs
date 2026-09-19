@@ -19,6 +19,21 @@ fn format_with_commas(n: usize) -> String {
     result
 }
 
+fn unwrap_phase_degrees(phases: &mut [f32]) {
+    let mut offset = 0.0f32;
+    for i in 1..phases.len() {
+        let diff = (phases[i] + offset) - phases[i - 1];
+        if diff > 180.0 {
+            let cycles = ((diff + 180.0) / 360.0).floor();
+            offset -= cycles * 360.0;
+        } else if diff < -180.0 {
+            let cycles = ((-diff + 180.0) / 360.0).floor();
+            offset += cycles * 360.0;
+        }
+        phases[i] += offset;
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MagnitudeScale {
     Linear,
@@ -50,6 +65,10 @@ pub struct Response<P: Processor<f32>> {
     title: String,
     show_info: bool,
     benchmark_iterations: Option<usize>,
+
+    show_phase: bool,
+    min_phase: Option<f32>,
+    max_phase: Option<f32>,
 }
 
 pub fn response<P>(processor: P, sample_rate: f32) -> Response<P>
@@ -74,6 +93,10 @@ where
         title: "Frequency Response".to_string(),
         show_info: false,
         benchmark_iterations: None,
+
+        show_phase: false,
+        min_phase: None,
+        max_phase: None,
     }
 }
 
@@ -116,6 +139,19 @@ where
     pub fn magnitude_range(mut self, min: f32, max: f32) -> Self {
         self.min_magnitude = Some(min);
         self.max_magnitude = Some(max);
+        self
+    }
+
+    pub fn show_phase(mut self) -> Self {
+        self.show_phase = true;
+        self
+    }
+
+    pub fn phase_range(mut self, min: f32, max: f32) -> Self {
+        assert!(min < max, "min_phase must be less than max_phase");
+        self.show_phase = true;
+        self.min_phase = Some(min);
+        self.max_phase = Some(max);
         self
     }
 
@@ -198,7 +234,7 @@ where
 
         fft.process(&mut signal);
 
-        let response: Vec<(f32, f32)> = signal
+        let response: Vec<(f32, f32, f32)> = signal
             .iter()
             .take(self.samples / 2 + 1)
             .enumerate()
@@ -209,13 +245,18 @@ where
                     return None;
                 }
 
-                Some((frequency, value.norm()))
+                let magnitude = value.norm();
+                let phase_deg = value.im.atan2(value.re).to_degrees();
+                Some((frequency, magnitude, phase_deg))
             })
             .collect();
 
+        let mut unwrapped_phases: Vec<f32> = response.iter().map(|&(_, _, p)| p).collect();
+        unwrap_phase_degrees(&mut unwrapped_phases);
+
         let plot_data: Vec<(f32, f32)> = response
             .iter()
-            .map(|&(frequency, magnitude)| {
+            .map(|&(frequency, magnitude, _)| {
                 let y = match self.magnitude_scale {
                     MagnitudeScale::Linear => magnitude,
                     MagnitudeScale::Decibel => {
@@ -231,12 +272,24 @@ where
             })
             .collect();
 
+        let phase_plot_data: Vec<(f32, f32)> = response
+            .iter()
+            .zip(unwrapped_phases.iter())
+            .map(|(&(frequency, _, _), &phase)| (frequency, phase))
+            .collect();
+
         let y_range = match (self.min_magnitude, self.max_magnitude) {
             (Some(min), Some(max)) => min..max,
             _ => match self.magnitude_scale {
                 MagnitudeScale::Linear => 0.0..1.1,
                 MagnitudeScale::Decibel => -80.0..10.0,
             },
+        };
+
+
+        let phase_range = match (self.min_phase, self.max_phase) {
+            (Some(min), Some(max)) => min..max,
+            _ => -180.0..180.0,
         };
 
         let path = path.as_ref();
@@ -368,8 +421,8 @@ where
             (root.clone(), Some(self.title.as_str()))
         };
 
-        match self.frequency_scale {
-            FrequencyScale::Linear => {
+        match (self.frequency_scale, self.show_phase) {
+            (FrequencyScale::Linear, false) => {
                 let mut builder = ChartBuilder::on(&chart_area);
                 builder.margin(20).x_label_area_size(60).y_label_area_size(70);
                 if let Some(cap) = caption_title {
@@ -392,7 +445,63 @@ where
                     .draw_series(LineSeries::new(plot_data, &BLUE))
                     .expect("failed to draw frequency response");
             }
-            FrequencyScale::Log => {
+            (FrequencyScale::Linear, true) => {
+                let mut builder = ChartBuilder::on(&chart_area);
+                builder
+                    .margin(20)
+                    .x_label_area_size(60)
+                    .y_label_area_size(70)
+                    .right_y_label_area_size(70);
+                if let Some(cap) = caption_title {
+                    builder.caption(cap, ("sans-serif", 30));
+                }
+
+                let mut chart = builder
+                    .build_cartesian_2d(self.min_freq..self.max_freq, y_range)
+                    .expect("failed to create chart")
+                    .set_secondary_coord(self.min_freq..self.max_freq, phase_range);
+
+                chart
+                    .configure_mesh()
+                    .x_desc("Frequency (Hz)")
+                    .y_desc(y_desc)
+                    .x_label_formatter(&|x| format!("{x:.0}"))
+                    .draw()
+                    .expect("failed to draw chart axes");
+
+                chart
+                    .configure_secondary_axes()
+                    .y_desc("Phase (deg)")
+                    .y_label_formatter(&|y| format!("{y:.0}°"))
+                    .draw()
+                    .expect("failed to draw secondary axes");
+
+                chart
+                    .draw_series(LineSeries::new(plot_data, &BLUE))
+                    .expect("failed to draw frequency response")
+                    .label("Magnitude")
+                    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], BLUE));
+
+                chart
+                    .draw_secondary_series(DashedLineSeries::new(
+                        phase_plot_data,
+                        5,
+                        5,
+                        RED.stroke_width(2),
+                    ))
+                    .expect("failed to draw phase response")
+                    .label("Phase")
+                    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED.stroke_width(2)));
+
+                chart
+                    .configure_series_labels()
+                    .background_style(WHITE.mix(0.8))
+                    .border_style(BLACK)
+                    .position(SeriesLabelPosition::UpperRight)
+                    .draw()
+                    .expect("failed to draw legend");
+            }
+            (FrequencyScale::Log, false) => {
                 let mut builder = ChartBuilder::on(&chart_area);
                 builder.margin(20).x_label_area_size(60).y_label_area_size(70);
                 if let Some(cap) = caption_title {
@@ -420,6 +529,68 @@ where
                 chart
                     .draw_series(LineSeries::new(plot_data, &BLUE))
                     .expect("failed to draw frequency response");
+            }
+            (FrequencyScale::Log, true) => {
+                let mut builder = ChartBuilder::on(&chart_area);
+                builder
+                    .margin(20)
+                    .x_label_area_size(60)
+                    .y_label_area_size(70)
+                    .right_y_label_area_size(70);
+                if let Some(cap) = caption_title {
+                    builder.caption(cap, ("sans-serif", 30));
+                }
+
+                let mut chart = builder
+                    .build_cartesian_2d((self.min_freq..self.max_freq).log_scale(), y_range)
+                    .expect("failed to create chart")
+                    .set_secondary_coord((self.min_freq..self.max_freq).log_scale(), phase_range);
+
+                chart
+                    .configure_mesh()
+                    .x_desc("Frequency (Hz)")
+                    .y_desc(y_desc)
+                    .x_label_formatter(&|f| {
+                        if *f >= 1000.0 {
+                            format!("{:.0}k", f / 1000.0)
+                        } else {
+                            format!("{f:.0}")
+                        }
+                    })
+                    .draw()
+                    .expect("failed to draw chart axes");
+
+                chart
+                    .configure_secondary_axes()
+                    .y_desc("Phase (deg)")
+                    .y_label_formatter(&|y| format!("{y:.0}°"))
+                    .draw()
+                    .expect("failed to draw secondary axes");
+
+                chart
+                    .draw_series(LineSeries::new(plot_data, &BLUE))
+                    .expect("failed to draw frequency response")
+                    .label("Magnitude")
+                    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], BLUE));
+
+                chart
+                    .draw_secondary_series(DashedLineSeries::new(
+                        phase_plot_data,
+                        5,
+                        5,
+                        RED.stroke_width(2),
+                    ))
+                    .expect("failed to draw phase response")
+                    .label("Phase")
+                    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED.stroke_width(2)));
+
+                chart
+                    .configure_series_labels()
+                    .background_style(WHITE.mix(0.8))
+                    .border_style(BLACK)
+                    .position(SeriesLabelPosition::UpperRight)
+                    .draw()
+                    .expect("failed to draw legend");
             }
         }
 
