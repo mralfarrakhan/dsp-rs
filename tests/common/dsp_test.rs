@@ -1,16 +1,23 @@
 use std::path::Path;
+use std::time::Instant;
 
-use plotters::{
-    backend::BitMapBackend,
-    chart::ChartBuilder,
-    coord::combinators::IntoLogRange,
-    drawing::IntoDrawingArea,
-    series::LineSeries,
-    style::{BLUE, WHITE},
-};
+use plotters::prelude::*;
 use rustfft::{FftPlanner, num_complex::Complex};
 
 use dsp_rs::processor::Processor;
+
+fn format_with_commas(n: usize) -> String {
+    let s = n.to_string();
+    let mut result = String::new();
+    let len = s.len();
+    for (i, c) in s.chars().enumerate() {
+        if i > 0 && (len - i).is_multiple_of(3) {
+            result.push(',');
+        }
+        result.push(c);
+    }
+    result
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MagnitudeScale {
@@ -39,6 +46,10 @@ pub struct Response<P: Processor<f32>> {
 
     magnitude_scale: MagnitudeScale,
     frequency_scale: FrequencyScale,
+
+    title: String,
+    show_info: bool,
+    benchmark_iterations: Option<usize>,
 }
 
 pub fn response<P>(processor: P, sample_rate: f32) -> Response<P>
@@ -59,6 +70,10 @@ where
 
         magnitude_scale: MagnitudeScale::Linear,
         frequency_scale: FrequencyScale::Linear,
+
+        title: "Frequency Response".to_string(),
+        show_info: false,
+        benchmark_iterations: None,
     }
 }
 
@@ -104,14 +119,33 @@ where
         self
     }
 
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = title.into();
+        self
+    }
+
+    pub fn with_info(mut self) -> Self {
+        self.show_info = true;
+        self
+    }
+
+    pub fn benchmark(mut self) -> Self {
+        self.show_info = true;
+        self.benchmark_iterations = Some(10);
+        self
+    }
+
+    pub fn benchmark_iterations(mut self, iters: usize) -> Self {
+        self.show_info = true;
+        self.benchmark_iterations = Some(iters.max(1));
+        self
+    }
+
     pub fn save(mut self, path: impl AsRef<Path>) {
         assert!(self.samples > 0, "samples must be greater than 0");
         assert!(self.sample_rate > 0.0, "sample_rate must be positive");
         assert!(self.min_freq >= 0.0, "min_freq must be non-negative");
-        assert!(
-            self.max_freq > self.min_freq,
-            "max_freq must be greater than min_freq"
-        );
+        assert!(self.max_freq > self.min_freq, "max_freq must be greater than min_freq");
         assert!(
             self.max_freq <= self.sample_rate / 2.0,
             "max_freq cannot exceed Nyquist frequency (sample_rate / 2)"
@@ -128,6 +162,7 @@ where
             assert!(min < max, "min_magnitude must be less than max_magnitude");
         }
 
+        // 1. Record impulse response from the initial processor state
         let mut signal: Vec<Complex<f32>> = (0..self.samples)
             .map(|i| {
                 let input = if i == 0 { 1.0 } else { 0.0 };
@@ -137,6 +172,27 @@ where
             })
             .collect();
 
+        // 2. Run performance benchmark if requested (post-impulse response)
+        let bench_result = self.benchmark_iterations.map(|iters| {
+            let iters = iters.max(1);
+            let mut bench_buf = vec![0.0f32; self.samples];
+            bench_buf[0] = 1.0;
+
+            // Warmup iterations
+            for _ in 0..2 {
+                self.processor.process_buffer(&mut bench_buf);
+            }
+
+            let bench_start = Instant::now();
+            for _ in 0..iters {
+                self.processor.process_buffer(&mut bench_buf);
+            }
+            let bench_elapsed = bench_start.elapsed();
+            let avg_duration = bench_elapsed / (iters as u32);
+            (iters, avg_duration)
+        });
+
+        // 3. FFT computation
         let mut planner = FftPlanner::<f32>::new();
         let fft = planner.plan_fft_forward(self.samples);
 
@@ -188,7 +244,80 @@ where
             std::fs::create_dir_all(parent).expect("failed to create plot output directory");
         }
 
-        let root = BitMapBackend::new(path, (1000, 600)).into_drawing_area();
+        // Format metadata lines if enabled
+        let signal_duration_secs = self.samples as f64 / self.sample_rate as f64;
+        let signal_info = if self.show_info {
+            let sample_rate_str = if self.sample_rate.fract() == 0.0 {
+                format!("{} Hz", format_with_commas(self.sample_rate as usize))
+            } else {
+                format!("{:.1} Hz", self.sample_rate)
+            };
+
+            let samples_str = format_with_commas(self.samples);
+
+            let duration_str = if signal_duration_secs >= 1.0 {
+                format!("{:.2} s", signal_duration_secs)
+            } else if signal_duration_secs >= 0.001 {
+                format!("{:.1} ms", signal_duration_secs * 1000.0)
+            } else {
+                format!("{:.1} µs", signal_duration_secs * 1_000_000.0)
+            };
+
+            Some(format!(
+                "Sample Rate: {}   |   Samples: {}   |   Duration: {}",
+                sample_rate_str, samples_str, duration_str
+            ))
+        } else {
+            None
+        };
+
+        let perf_info = bench_result.map(|(iters, avg_duration)| {
+            let avg_secs = avg_duration.as_secs_f64().max(1e-12);
+
+            let avg_time_str = if avg_secs < 1e-6 {
+                format!("{:.1} ns", avg_secs * 1e9)
+            } else if avg_secs < 1e-3 {
+                format!("{:.1} µs", avg_secs * 1e6)
+            } else if avg_secs < 1.0 {
+                format!("{:.2} ms", avg_secs * 1e3)
+            } else {
+                format!("{:.2} s", avg_secs)
+            };
+
+            let throughput = (self.samples as f64) / avg_secs;
+            let ns_per_sample = (avg_secs * 1e9) / (self.samples as f64);
+            let throughput_str = if throughput >= 1e9 {
+                format!("{:.2} GSa/s ({:.2} ns/sa)", throughput / 1e9, ns_per_sample)
+            } else if throughput >= 1e6 {
+                format!("{:.1} MSa/s ({:.2} ns/sa)", throughput / 1e6, ns_per_sample)
+            } else if throughput >= 1e3 {
+                format!("{:.1} kSa/s ({:.2} ns/sa)", throughput / 1e3, ns_per_sample)
+            } else {
+                format!("{:.0} Sa/s ({:.2} ns/sa)", throughput, ns_per_sample)
+            };
+
+            let realtime_factor = signal_duration_secs / avg_secs;
+            let rt_str = if realtime_factor >= 1000.0 {
+                format!("{}× real-time", format_with_commas(realtime_factor.round() as usize))
+            } else if realtime_factor >= 10.0 {
+                format!("{:.1}× real-time", realtime_factor)
+            } else {
+                format!("{:.2}× real-time", realtime_factor)
+            };
+
+            format!(
+                "Avg Process Time ({} iters): {}   |   Throughput: {}   |   {}",
+                iters, avg_time_str, throughput_str, rt_str
+            )
+        });
+
+        let canvas_height = if self.show_info {
+            if perf_info.is_some() { 650 } else { 620 }
+        } else {
+            600
+        };
+
+        let root = BitMapBackend::new(path, (1000, canvas_height)).into_drawing_area();
         root.fill(&WHITE)
             .expect("failed to initialize drawing area");
 
@@ -197,13 +326,57 @@ where
             MagnitudeScale::Decibel => "Magnitude (dB)",
         };
 
+        // Render header and prepare chart area
+        let (chart_area, caption_title) = if self.show_info {
+            let header_height = if perf_info.is_some() { 80 } else { 55 };
+            let (header_area, chart_area) = root.split_vertically(header_height);
+
+            let center_pos = plotters::style::text_anchor::Pos::new(
+                plotters::style::text_anchor::HPos::Center,
+                plotters::style::text_anchor::VPos::Top,
+            );
+
+            let title_style = ("sans-serif", 24)
+                .into_font()
+                .into_text_style(&header_area)
+                .pos(center_pos);
+
+            let subtitle_style = ("sans-serif", 13)
+                .into_font()
+                .color(&RGBColor(90, 90, 90))
+                .into_text_style(&header_area)
+                .pos(center_pos);
+
+            header_area
+                .draw_text(&self.title, &title_style, (500, 10))
+                .expect("failed to draw title");
+
+            if let Some(info) = &signal_info {
+                header_area
+                    .draw_text(info, &subtitle_style, (500, 40))
+                    .expect("failed to draw signal info");
+            }
+
+            if let Some(perf) = &perf_info {
+                header_area
+                    .draw_text(perf, &subtitle_style, (500, 58))
+                    .expect("failed to draw perf info");
+            }
+
+            (chart_area, None)
+        } else {
+            (root.clone(), Some(self.title.as_str()))
+        };
+
         match self.frequency_scale {
             FrequencyScale::Linear => {
-                let mut chart = ChartBuilder::on(&root)
-                    .margin(20)
-                    .caption("Frequency Response", ("sans-serif", 30))
-                    .x_label_area_size(60)
-                    .y_label_area_size(70)
+                let mut builder = ChartBuilder::on(&chart_area);
+                builder.margin(20).x_label_area_size(60).y_label_area_size(70);
+                if let Some(cap) = caption_title {
+                    builder.caption(cap, ("sans-serif", 30));
+                }
+
+                let mut chart = builder
                     .build_cartesian_2d(self.min_freq..self.max_freq, y_range)
                     .expect("failed to create chart");
 
@@ -220,11 +393,13 @@ where
                     .expect("failed to draw frequency response");
             }
             FrequencyScale::Log => {
-                let mut chart = ChartBuilder::on(&root)
-                    .margin(20)
-                    .caption("Frequency Response", ("sans-serif", 30))
-                    .x_label_area_size(60)
-                    .y_label_area_size(70)
+                let mut builder = ChartBuilder::on(&chart_area);
+                builder.margin(20).x_label_area_size(60).y_label_area_size(70);
+                if let Some(cap) = caption_title {
+                    builder.caption(cap, ("sans-serif", 30));
+                }
+
+                let mut chart = builder
                     .build_cartesian_2d((self.min_freq..self.max_freq).log_scale(), y_range)
                     .expect("failed to create chart");
 

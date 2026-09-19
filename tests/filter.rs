@@ -10,6 +10,8 @@ fn plot_filter() {
     let filter = FirstOrderLowPass::new(SAMPLE_RATE, 10_000.0);
 
     dsp_test::response(filter, SAMPLE_RATE)
+        .title("1st-Order Lowpass Filter (fc = 10 kHz)")
+        .benchmark()
         .db()
         .magnitude_range(-10.0, 10.0)
         .log()
