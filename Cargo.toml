@@ -1,0 +1,11 @@
+[package]
+name = "dsp-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+num-traits = "0.2.19"
+
+[dev-dependencies]
+plotters = "0.3.7"
+rustfft = "6.4.1"
