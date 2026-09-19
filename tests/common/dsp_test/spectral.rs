@@ -6,18 +6,7 @@ use rustfft::{FftPlanner, num_complex::Complex};
 
 use dsp_rs::processor::Processor;
 
-fn format_with_commas(n: usize) -> String {
-    let s = n.to_string();
-    let mut result = String::new();
-    let len = s.len();
-    for (i, c) in s.chars().enumerate() {
-        if i > 0 && (len - i).is_multiple_of(3) {
-            result.push(',');
-        }
-        result.push(c);
-    }
-    result
-}
+use crate::common::dsp_test::common::format_with_commas;
 
 fn unwrap_phase_degrees(phases: &mut [f32]) {
     let mut offset = 0.0f32;
@@ -46,8 +35,14 @@ pub enum FrequencyScale {
     Log,
 }
 
-#[allow(dead_code)]
-pub struct Response<P: Processor<f32>> {
+pub fn response<P>(processor: P, sample_rate: f32) -> SpectralResponse<P>
+where
+    P: Processor<f32>,
+{
+    spectral_response(processor, sample_rate)
+}
+
+pub struct SpectralResponse<P: Processor<f32>> {
     processor: P,
 
     sample_rate: f32,
@@ -71,11 +66,11 @@ pub struct Response<P: Processor<f32>> {
     max_phase: Option<f32>,
 }
 
-pub fn response<P>(processor: P, sample_rate: f32) -> Response<P>
+pub fn spectral_response<P>(processor: P, sample_rate: f32) -> SpectralResponse<P>
 where
     P: Processor<f32>,
 {
-    Response {
+    SpectralResponse {
         processor,
 
         sample_rate,
@@ -90,7 +85,7 @@ where
         magnitude_scale: MagnitudeScale::Linear,
         frequency_scale: FrequencyScale::Linear,
 
-        title: "Frequency Response".to_string(),
+        title: "Spectral Response".to_string(),
         show_info: false,
         benchmark_iterations: None,
 
@@ -101,7 +96,7 @@ where
 }
 
 #[allow(dead_code)]
-impl<P> Response<P>
+impl<P> SpectralResponse<P>
 where
     P: Processor<f32>,
 {
@@ -181,7 +176,10 @@ where
         assert!(self.samples > 0, "samples must be greater than 0");
         assert!(self.sample_rate > 0.0, "sample_rate must be positive");
         assert!(self.min_freq >= 0.0, "min_freq must be non-negative");
-        assert!(self.max_freq > self.min_freq, "max_freq must be greater than min_freq");
+        assert!(
+            self.max_freq > self.min_freq,
+            "max_freq must be greater than min_freq"
+        );
         assert!(
             self.max_freq <= self.sample_rate / 2.0,
             "max_freq cannot exceed Nyquist frequency (sample_rate / 2)"
@@ -286,7 +284,6 @@ where
             },
         };
 
-
         let phase_range = match (self.min_phase, self.max_phase) {
             (Some(min), Some(max)) => min..max,
             _ => -180.0..180.0,
@@ -351,7 +348,10 @@ where
 
             let realtime_factor = signal_duration_secs / avg_secs;
             let rt_str = if realtime_factor >= 1000.0 {
-                format!("{}× real-time", format_with_commas(realtime_factor.round() as usize))
+                format!(
+                    "{}× real-time",
+                    format_with_commas(realtime_factor.round() as usize)
+                )
             } else if realtime_factor >= 10.0 {
                 format!("{:.1}× real-time", realtime_factor)
             } else {
@@ -424,7 +424,10 @@ where
         match (self.frequency_scale, self.show_phase) {
             (FrequencyScale::Linear, false) => {
                 let mut builder = ChartBuilder::on(&chart_area);
-                builder.margin(20).x_label_area_size(60).y_label_area_size(70);
+                builder
+                    .margin(20)
+                    .x_label_area_size(60)
+                    .y_label_area_size(70);
                 if let Some(cap) = caption_title {
                     builder.caption(cap, ("sans-serif", 30));
                 }
@@ -491,7 +494,9 @@ where
                     ))
                     .expect("failed to draw phase response")
                     .label("Phase")
-                    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED.stroke_width(2)));
+                    .legend(|(x, y)| {
+                        PathElement::new(vec![(x, y), (x + 20, y)], RED.stroke_width(2))
+                    });
 
                 chart
                     .configure_series_labels()
@@ -503,7 +508,10 @@ where
             }
             (FrequencyScale::Log, false) => {
                 let mut builder = ChartBuilder::on(&chart_area);
-                builder.margin(20).x_label_area_size(60).y_label_area_size(70);
+                builder
+                    .margin(20)
+                    .x_label_area_size(60)
+                    .y_label_area_size(70);
                 if let Some(cap) = caption_title {
                     builder.caption(cap, ("sans-serif", 30));
                 }
@@ -582,7 +590,9 @@ where
                     ))
                     .expect("failed to draw phase response")
                     .label("Phase")
-                    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], RED.stroke_width(2)));
+                    .legend(|(x, y)| {
+                        PathElement::new(vec![(x, y), (x + 20, y)], RED.stroke_width(2))
+                    });
 
                 chart
                     .configure_series_labels()

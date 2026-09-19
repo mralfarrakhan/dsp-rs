@@ -42,3 +42,14 @@ fn plot_chain() {
         .frequency_range(20.0, 20_000.0)
         .save("test_output/chain_lowpass.png");
 }
+
+#[test]
+fn plot_temporal_filter() {
+    let filter = FirstOrderLowPass::new(SAMPLE_RATE, 2_000.0);
+
+    dsp_test::temporal_response(filter, SAMPLE_RATE)
+        .title("Lowpass Filter Temporal Response (fc = 2 kHz, 1 kHz Square)")
+        .levels(0.1, 1.0)
+        .benchmark()
+        .save("test_output/temporal_lowpass.png");
+}
