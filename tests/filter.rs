@@ -1,5 +1,7 @@
 mod common;
 
+use std::ops::Div;
+
 use common::dsp_test;
 use dsp_rs::{chain, filter::FirstOrderLowPass};
 
@@ -24,7 +26,11 @@ fn plot_filter() {
 
 #[test]
 fn plot_chain() {
-    let cutoff = 10_000.0 / (2.0f32.sqrt() - 1.0).sqrt();
+    let cutoff = SAMPLE_RATE.div(std::f32::consts::PI)
+        * f32::atan(
+            f32::tan(std::f32::consts::PI * 10_000f32 / SAMPLE_RATE)
+                .div((2f32.sqrt() - 1f32).sqrt()),
+        );
 
     let chain_filter = chain!(
         FirstOrderLowPass::new(SAMPLE_RATE, cutoff),
