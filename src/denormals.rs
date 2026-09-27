@@ -2,8 +2,8 @@ use num_traits::Float;
 
 pub trait Denormal: Float {
     #[inline]
-    fn flush_denormal(self) -> Self {
-        if self != Self::zero() && self.abs() < Self::min_positive_value() {
+    fn zapgremlins(self) -> Self {
+        if self.abs() < Self::min_positive_value() {
             Self::zero()
         } else {
             self
@@ -11,8 +11,8 @@ pub trait Denormal: Float {
     }
 
     #[inline]
-    fn assign_flush(&mut self, new_value: Self) {
-        *self = new_value.flush_denormal();
+    fn assign_zapped(&mut self, new_value: Self) {
+        *self = new_value.zapgremlins();
     }
 }
 

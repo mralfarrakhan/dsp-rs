@@ -3,18 +3,18 @@ use num_traits::Float;
 use crate::processor::Processor;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct Chain<H, T> {
+pub struct Parallel<H, T> {
     pub head: H,
     pub tail: T,
 }
 
-impl<H, T> Chain<H, T> {
+impl<H, T> Parallel<H, T> {
     pub const fn new(head: H, tail: T) -> Self {
         Self { head, tail }
     }
 }
 
-impl<F, H, T> Processor<F> for Chain<H, T>
+impl<F, H, T> Processor<F> for Parallel<H, T>
 where
     F: Float,
     H: Processor<F>,
@@ -22,8 +22,7 @@ where
 {
     #[inline]
     fn process_sample(&mut self, sample: F) -> F {
-        let sample = self.head.process_sample(sample);
-        self.tail.process_sample(sample)
+        self.head.process_sample(sample) + self.tail.process_sample(sample)
     }
 
     #[inline]
@@ -31,13 +30,14 @@ where
     where
         F: Copy,
     {
-        self.head.process_buffer(buffer);
-        self.tail.process_buffer(buffer);
+        for sample in buffer {
+            *sample = self.process_sample(*sample);
+        }
     }
 }
 
 #[macro_export]
-macro_rules! chain {
+macro_rules! parallel {
     () => {
         $crate::Nil
     };
@@ -47,9 +47,9 @@ macro_rules! chain {
     };
 
     ($head:expr, $($tail:expr),+ $(,)?) => {
-        $crate::chain::Chain::new(
+        $crate::parallel::Parallel::new(
             $head,
-            $crate::chain!($($tail),+),
+            $crate::parallel!($($tail),+),
         )
     };
 }
