@@ -4,7 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-num-traits = "0.2.19"
+num-traits = { version = "0.2.19", default-features = false }
+
+[features]
+default = ["std"]
+std = ["num-traits/std"]
+libm = ["num-traits/libm"]
 
 [dev-dependencies]
 plotters = "0.3.7"
