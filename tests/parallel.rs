@@ -2,23 +2,15 @@ mod common;
 
 use common::dsp_test;
 use dsp_rs::{
-    filter::FirstOrderLowPass,
+    Nil, chain,
+    filter::{FirstOrderLowPass, SecondOrderHighPass, SecondOrderLowPass},
+    gain::Gain,
     parallel,
     processor::Processor,
-    Nil,
 };
 
 const SAMPLE_RATE: f32 = 48_000.0;
 const SAMPLE_SIZE: usize = 65_536;
-
-#[derive(Debug, Clone, Copy)]
-struct Gain(f32);
-
-impl Processor<f32> for Gain {
-    fn process_sample(&mut self, sample: f32) -> f32 {
-        sample * self.0
-    }
-}
 
 #[test]
 fn test_parallel_empty() {
@@ -33,7 +25,7 @@ fn test_parallel_empty() {
 
 #[test]
 fn test_parallel_single() {
-    let mut p = parallel!(Gain(2.0));
+    let mut p = parallel!(Gain::new(2.0));
     assert_eq!(p.process_sample(3.0), 6.0);
 
     let mut buf = [1.0, 2.0, 3.0];
@@ -43,7 +35,7 @@ fn test_parallel_single() {
 
 #[test]
 fn test_parallel_two() {
-    let mut p = parallel!(Gain(2.0), Gain(3.0));
+    let mut p = parallel!(Gain::new(2.0), Gain::new(3.0));
     // 1.0 * 2.0 + 1.0 * 3.0 = 5.0
     assert_eq!(p.process_sample(1.0), 5.0);
 
@@ -54,7 +46,7 @@ fn test_parallel_two() {
 
 #[test]
 fn test_parallel_nested_three() {
-    let mut p = parallel!(Gain(1.0), Gain(2.0), Gain(3.0),);
+    let mut p = parallel!(Gain::new(1.0), Gain::new(2.0), Gain::new(3.0),);
     // 2.0 * (1 + 2 + 3) = 12.0
     assert_eq!(p.process_sample(2.0), 12.0);
 
@@ -86,13 +78,22 @@ fn test_parallel_buffer_equivalence() {
 
 #[test]
 fn plot_parallel() {
-    let parallel_filter = parallel!(
-        FirstOrderLowPass::new(SAMPLE_RATE, 10_000.0),
-        FirstOrderLowPass::new(SAMPLE_RATE, 10_000.0),
+    let cutoff = 1_000.0;
+
+    let lpf = chain!(
+        SecondOrderLowPass::new(SAMPLE_RATE, cutoff),
+        SecondOrderLowPass::new(SAMPLE_RATE, cutoff),
     );
 
+    let hpf = chain!(
+        SecondOrderHighPass::new(SAMPLE_RATE, cutoff),
+        SecondOrderHighPass::new(SAMPLE_RATE, cutoff),
+    );
+
+    let parallel_filter = parallel!(hpf, lpf);
+
     dsp_test::response(parallel_filter, SAMPLE_RATE)
-        .title("Parallel Lowpass Filter (2x fc = 10 kHz)")
+        .title("2-Band LR4 Crossover (fc = 1 kHz)")
         .benchmark()
         .show_phase()
         .db()
@@ -100,7 +101,7 @@ fn plot_parallel() {
         .magnitude_range(-10.0, 10.0)
         .log()
         .frequency_range(20.0, 20_000.0)
-        .save("test_output/parallel_lowpass.png");
+        .save("test_output/parallel.png");
 }
 
 #[test]
@@ -145,7 +146,10 @@ fn bench_perf() {
     let dur_par = start.elapsed() / (iters as u32);
 
     let total_samples = SAMPLE_SIZE as f64;
-    println!("\n=== PERFORMANCE REPORT (Buffer size: {}) ===", SAMPLE_SIZE);
+    println!(
+        "\n=== PERFORMANCE REPORT (Buffer size: {}) ===",
+        SAMPLE_SIZE
+    );
     println!(
         "Single 1st-order:  {:>8.2?} | {:>6.2} MSa/s ({:.2} ns/sample)",
         dur_single,

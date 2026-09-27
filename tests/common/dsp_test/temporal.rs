@@ -26,6 +26,7 @@ pub struct TemporalResponse<P: Processor<f32>> {
     benchmark_iterations: Option<usize>,
 }
 
+#[allow(dead_code)]
 pub fn temporal_response<P>(processor: P, sample_rate: f32) -> TemporalResponse<P>
 where
     P: Processor<f32>,

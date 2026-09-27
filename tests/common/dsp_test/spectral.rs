@@ -286,7 +286,19 @@ where
 
         let phase_range = match (self.min_phase, self.max_phase) {
             (Some(min), Some(max)) => min..max,
-            _ => -180.0..180.0,
+            _ => {
+                let min_p = unwrapped_phases.iter().copied().fold(f32::INFINITY, f32::min);
+                let max_p = unwrapped_phases.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+
+                if min_p.is_finite() && max_p.is_finite() && (min_p < -180.0 || max_p > 180.0) {
+                    let grid = 90.0;
+                    let lower = (min_p / grid).floor() * grid;
+                    let upper = (max_p / grid).ceil() * grid;
+                    lower.min(-180.0)..upper.max(180.0)
+                } else {
+                    -180.0..180.0
+                }
+            }
         };
 
         let path = path.as_ref();
