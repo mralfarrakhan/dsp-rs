@@ -2,6 +2,7 @@ use num_traits::{Float, FloatConst};
 
 use crate::{denormals::Denormal, processor::Processor};
 
+#[derive(Debug, Clone, Copy)]
 pub struct FirstOrderLowPass<F: Float> {
     b_0: F,
     b_1: F,
@@ -40,6 +41,7 @@ impl<F: Float> Processor<F> for FirstOrderLowPass<F> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct SecondOrderLowPass<F: Float> {
     b_0: F,
     b_1: F,
@@ -96,6 +98,7 @@ impl<F: Float> Processor<F> for SecondOrderLowPass<F> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct SecondOrderHighPass<F: Float> {
     b_0: F,
     b_1: F,
