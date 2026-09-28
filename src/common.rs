@@ -26,11 +26,8 @@ impl<F: Float> Processor<F> for Nil {
 pub trait Denormal: Float {
     #[inline]
     fn zapgremlins(self) -> Self {
-        if self.abs() < Self::min_positive_value() {
-            Self::zero()
-        } else {
-            self
-        }
+        let offset = Self::from(1.0e-25).unwrap_or_else(Self::zero);
+        (self + offset) - offset
     }
 
     #[inline]

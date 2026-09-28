@@ -64,10 +64,8 @@ pub struct SecondOrderFilterParameters<F: Float> {
 #[derive(Debug, Clone, Copy)]
 pub struct SecondOrderFilter<F: Float> {
     parameters: SecondOrderFilterParameters<F>,
-    x_1: F,
-    x_2: F,
-    y_1: F,
-    y_2: F,
+    s_1: F,
+    s_2: F,
 }
 
 impl<F> SecondOrderFilter<F>
@@ -92,10 +90,8 @@ where
                 a_1,
                 a_2,
             },
-            x_1: F::zero(),
-            x_2: F::zero(),
-            y_1: F::zero(),
-            y_2: F::zero(),
+            s_1: F::zero(),
+            s_2: F::zero(),
         }
     }
 
@@ -117,10 +113,8 @@ where
                 a_1,
                 a_2,
             },
-            x_1: F::zero(),
-            x_2: F::zero(),
-            y_1: F::zero(),
-            y_2: F::zero(),
+            s_1: F::zero(),
+            s_2: F::zero(),
         }
     }
 
@@ -141,10 +135,8 @@ where
                 a_1,
                 a_2,
             },
-            x_1: F::zero(),
-            x_2: F::zero(),
-            y_1: F::zero(),
-            y_2: F::zero(),
+            s_1: F::zero(),
+            s_2: F::zero(),
         }
     }
 }
@@ -158,17 +150,37 @@ impl<F: Float> Processor<F> for SecondOrderFilter<F> {
 
     #[inline]
     fn process_sample(&mut self, sample: F) -> F {
-        let y = self.parameters.b_0 * sample
-            + self.parameters.b_1 * self.x_1
-            + self.parameters.b_2 * self.x_2
-            - self.parameters.a_1 * self.y_1
-            - self.parameters.a_2 * self.y_2;
+        let y = self.parameters.b_0 * sample + self.s_1;
+        self.s_1
+            .assign_zapped(self.parameters.b_1 * sample - self.parameters.a_1 * y + self.s_2);
+        self.s_2
+            .assign_zapped(self.parameters.b_2 * sample - self.parameters.a_2 * y);
 
-        self.x_2.assign_zapped(self.x_1);
-        self.x_1.assign_zapped(sample);
-        self.y_2.assign_zapped(self.y_1);
-        self.y_1.assign_zapped(y);
+        y
+    }
 
-        self.y_1
+    #[inline]
+    fn process_buffer(&mut self, buffer: &mut [F])
+    where
+        F: Copy,
+    {
+        let b_0 = self.parameters.b_0;
+        let b_1 = self.parameters.b_1;
+        let b_2 = self.parameters.b_2;
+        let a_1 = self.parameters.a_1;
+        let a_2 = self.parameters.a_2;
+        let mut s_1 = self.s_1;
+        let mut s_2 = self.s_2;
+
+        for sample in buffer.iter_mut() {
+            let x = *sample;
+            let y = b_0 * x + s_1;
+            s_1.assign_zapped(b_1 * x - a_1 * y + s_2);
+            s_2.assign_zapped(b_2 * x - a_2 * y);
+            *sample = y;
+        }
+
+        self.s_1 = s_1;
+        self.s_2 = s_2;
     }
 }
