@@ -123,6 +123,30 @@ where
             y_2: F::zero(),
         }
     }
+
+    pub fn new_apf(sample_rate: F, cutoff: F) -> Self {
+        let k = F::tan(F::PI() * cutoff / sample_rate);
+        let a_0 = F::one() + F::SQRT_2() * k + k.powi(2);
+        let a_1 = F::from(2)
+            .unwrap()
+            .mul(k.powi(2).sub(F::from(1).unwrap()))
+            .div(a_0);
+        let a_2 = (F::one() - F::SQRT_2() * k + k.powi(2)).div(a_0);
+
+        Self {
+            parameters: SecondOrderFilterParameters {
+                b_0: a_2,
+                b_1: a_1,
+                b_2: F::one(),
+                a_1,
+                a_2,
+            },
+            x_1: F::zero(),
+            x_2: F::zero(),
+            y_1: F::zero(),
+            y_2: F::zero(),
+        }
+    }
 }
 
 impl<F: Float> Processor<F> for SecondOrderFilter<F> {

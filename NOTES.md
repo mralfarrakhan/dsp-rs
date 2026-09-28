@@ -322,7 +322,110 @@ $$
 y[n] = b_0 x[n] + b_1 x[n-1] + b_2 x[n-2] - a_1 y[n-1] - a_2 y[n-2]
 $$
 
-## 5. Summary of Filter Coefficients
+## 5. Second-Order All-Pass Filter (APF)
+
+### Analog Prototype
+A general 2nd-order analog all-pass filter prototype has zeros that are the mirror reflections of its poles across the imaginary axis in the $s$-plane, producing unit gain ($|H_a(j\Omega)| = 1$) across all frequencies while introducing frequency-dependent phase shift:
+$$
+H_a(S) = \frac{S^2 - \frac{1}{Q} S + 1}{S^2 + \frac{1}{Q} S + 1}
+$$
+where:
+- $Q$ is the quality factor controlling the sharpness of the phase transition around the center/pole frequency.
+- When $Q = \frac{1}{\sqrt{2}}$, $\frac{1}{Q} = \sqrt{2}$.
+
+### Cutoff/Center Angular Frequency & Pre-Warping
+Pre-warping the target digital center frequency $f_c$ at sampling rate $f_s$:
+$$
+\Omega_c = 2 f_s \tan\left(\pi \frac{f_c}{f_s}\right)
+$$
+Let $K = \tan\left(\pi \frac{f_c}{f_s}\right) = \frac{\Omega_c}{2 f_s} \implies \Omega_c = 2 f_s K$.
+
+### Continuous-Time Frequency Scaling ($S \leftarrow s / \Omega_c$)
+Substituting $S \leftarrow \frac{s}{\Omega_c}$:
+$$
+H_a(s) = \frac{\left(\frac{s}{\Omega_c}\right)^2 - \frac{1}{Q}\left(\frac{s}{\Omega_c}\right) + 1}{\left(\frac{s}{\Omega_c}\right)^2 + \frac{1}{Q}\left(\frac{s}{\Omega_c}\right) + 1} = \frac{s^2 - \frac{\Omega_c}{Q} s + \Omega_c^2}{s^2 + \frac{\Omega_c}{Q} s + \Omega_c^2}
+$$
+
+### Bilinear Transform
+Substitute $s \leftarrow 2 f_s \frac{z - 1}{z + 1}$:
+$$
+\begin{aligned}
+H(z) &= \frac{\left(2 f_s \frac{z-1}{z+1}\right)^2 - \frac{\Omega_c}{Q}\left(2 f_s \frac{z-1}{z+1}\right) + \Omega_c^2}{\left(2 f_s \frac{z-1}{z+1}\right)^2 + \frac{\Omega_c}{Q}\left(2 f_s \frac{z-1}{z+1}\right) + \Omega_c^2} \\
+     &= \frac{(2 f_s)^2 (z-1)^2 - \frac{\Omega_c}{Q} (2 f_s)(z-1)(z+1) + \Omega_c^2 (z+1)^2}{(2 f_s)^2 (z-1)^2 + \frac{\Omega_c}{Q} (2 f_s)(z-1)(z+1) + \Omega_c^2 (z+1)^2}
+\end{aligned}
+$$
+Dividing numerator and denominator by $(2 f_s)^2$ and substituting $K = \frac{\Omega_c}{2 f_s}$:
+$$
+H(z) = \frac{(z-1)^2 - \frac{K}{Q} (z^2 - 1) + K^2 (z+1)^2}{(z-1)^2 + \frac{K}{Q} (z^2 - 1) + K^2 (z+1)^2}
+$$
+Expanding the polynomials:
+- **Numerator**:
+$$
+\begin{aligned}
+&(z^2 - 2z + 1) - \frac{K}{Q}(z^2 - 1) + K^2 (z^2 + 2z + 1) \\
+&= \left(1 - \frac{K}{Q} + K^2\right) z^2 + 2(K^2 - 1) z + \left(1 + \frac{K}{Q} + K^2\right)
+\end{aligned}
+$$
+- **Denominator** (identical to 2nd-order LPF & HPF):
+$$
+\begin{aligned}
+&(z^2 - 2z + 1) + \frac{K}{Q}(z^2 - 1) + K^2 (z^2 + 2z + 1) \\
+&= \left(1 + \frac{K}{Q} + K^2\right) z^2 + 2(K^2 - 1) z + \left(1 - \frac{K}{Q} + K^2\right)
+\end{aligned}
+$$
+
+### Standard Causal Form (Powers of $z^{-1}$)
+Multiplying numerator and denominator by $z^{-2}$:
+$$
+H(z) = \frac{\left(1 - \frac{K}{Q} + K^2\right) + 2(K^2 - 1) z^{-1} + \left(1 + \frac{K}{Q} + K^2\right) z^{-2}}{\left(1 + \frac{K}{Q} + K^2\right) + 2(K^2 - 1) z^{-1} + \left(1 - \frac{K}{Q} + K^2\right) z^{-2}}
+$$
+Define the normalization factor $a_0$:
+$$
+a_0 = 1 + \frac{K}{Q} + K^2
+$$
+Dividing numerator and denominator by $a_0$:
+$$
+H(z) = \frac{b_0 + b_1 z^{-1} + b_2 z^{-2}}{1 + a_1 z^{-1} + a_2 z^{-2}}
+$$
+where:
+$$
+\begin{aligned}
+b_0 &= \frac{1 - \frac{K}{Q} + K^2}{a_0} = a_2 \\
+b_1 &= \frac{2(K^2 - 1)}{a_0} = a_1 \\
+b_2 &= \frac{1 + \frac{K}{Q} + K^2}{a_0} = 1 \\
+a_1 &= \frac{2(K^2 - 1)}{a_0} \\
+a_2 &= \frac{1 - \frac{K}{Q} + K^2}{a_0}
+\end{aligned}
+$$
+
+For $Q = \frac{1}{\sqrt{2}}$:
+$$
+\begin{aligned}
+a_0 &= 1 + \sqrt{2} K + K^2 \\
+a_1 &= \frac{2(K^2 - 1)}{a_0} \\
+a_2 &= \frac{1 - \sqrt{2} K + K^2}{a_0} \\
+b_0 &= a_2 \\
+b_1 &= a_1 \\
+b_2 &= 1
+\end{aligned}
+$$
+
+Notice that the numerator coefficients are the exact time-reversed counterpart of the denominator coefficients ($b_0 = a_2, b_1 = a_1, b_2 = 1$), which ensures $|H(e^{j\omega})| = 1$ across all frequencies.
+
+### Difference Equation
+$$
+\frac{Y(z)}{X(z)} = \frac{b_0 + b_1 z^{-1} + b_2 z^{-2}}{1 + a_1 z^{-1} + a_2 z^{-2}} \implies Y(z)(1 + a_1 z^{-1} + a_2 z^{-2}) = X(z)(b_0 + b_1 z^{-1} + b_2 z^{-2})
+$$
+Taking the inverse $\mathcal{Z}$-transform yields:
+$$
+y[n] = b_0 x[n] + b_1 x[n-1] + b_2 x[n-2] - a_1 y[n-1] - a_2 y[n-2]
+$$
+or equivalently in terms of denominator coefficients:
+$$
+y[n] = a_2 x[n] + a_1 x[n-1] + x[n-2] - a_1 y[n-1] - a_2 y[n-2]
+$$
+
+## 6. Summary of Filter Coefficients
 
 With $K = \tan\left(\pi \frac{f_c}{f_s}\right)$:
 
@@ -332,5 +435,6 @@ With $K = \tan\left(\pi \frac{f_c}{f_s}\right)$:
 | **HPF** | 1st | $1 + K$ | $\frac{1}{a_0}$ | $-\frac{1}{a_0}$ | — | $\frac{K - 1}{a_0}$ | — |
 | **LPF** | 2nd | $1 + \frac{K}{Q} + K^2$ | $\frac{K^2}{a_0}$ | $\frac{2 K^2}{a_0}$ | $\frac{K^2}{a_0}$ | $\frac{2(K^2 - 1)}{a_0}$ | $\frac{1 - \frac{K}{Q} + K^2}{a_0}$ |
 | **HPF** | 2nd | $1 + \frac{K}{Q} + K^2$ | $\frac{1}{a_0}$ | $-\frac{2}{a_0}$ | $\frac{1}{a_0}$ | $\frac{2(K^2 - 1)}{a_0}$ | $\frac{1 - \frac{K}{Q} + K^2}{a_0}$ |
+| **APF** | 2nd | $1 + \frac{K}{Q} + K^2$ | $\frac{1 - \frac{K}{Q} + K^2}{a_0} = a_2$ | $\frac{2(K^2 - 1)}{a_0} = a_1$ | $1$ | $\frac{2(K^2 - 1)}{a_0}$ | $\frac{1 - \frac{K}{Q} + K^2}{a_0}$ |
 
 *Note: For 2nd-order Butterworth responses, set $Q = \frac{1}{\sqrt{2}} \implies \frac{1}{Q} = \sqrt{2}$.*

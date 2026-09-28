@@ -78,19 +78,30 @@ fn test_parallel_buffer_equivalence() {
 
 #[test]
 fn plot_parallel() {
-    let cutoff = 1_000.0;
+    let lower_crossover = 1_000.0;
+    let upper_crossover = 10_000.0;
 
-    let lpf = chain!(
-        SecondOrderFilter::new_lpf(SAMPLE_RATE, cutoff),
-        SecondOrderFilter::new_lpf(SAMPLE_RATE, cutoff),
+    let first_band = chain!(
+        SecondOrderFilter::new_lpf(SAMPLE_RATE, lower_crossover),
+        SecondOrderFilter::new_lpf(SAMPLE_RATE, lower_crossover),
+        SecondOrderFilter::new_apf(SAMPLE_RATE, upper_crossover),
     );
 
-    let hpf = chain!(
-        SecondOrderFilter::new_hpf(SAMPLE_RATE, cutoff),
-        SecondOrderFilter::new_hpf(SAMPLE_RATE, cutoff),
+    let second_band = chain!(
+        SecondOrderFilter::new_hpf(SAMPLE_RATE, lower_crossover),
+        SecondOrderFilter::new_hpf(SAMPLE_RATE, lower_crossover),
+        SecondOrderFilter::new_lpf(SAMPLE_RATE, upper_crossover),
+        SecondOrderFilter::new_lpf(SAMPLE_RATE, upper_crossover),
     );
 
-    let parallel_filter = parallel!(hpf, lpf);
+    let third_band = chain!(
+        SecondOrderFilter::new_hpf(SAMPLE_RATE, lower_crossover),
+        SecondOrderFilter::new_hpf(SAMPLE_RATE, lower_crossover),
+        SecondOrderFilter::new_hpf(SAMPLE_RATE, upper_crossover),
+        SecondOrderFilter::new_hpf(SAMPLE_RATE, upper_crossover),
+    );
+
+    let parallel_filter = parallel!(first_band, second_band, third_band);
 
     dsp_test::response(parallel_filter, SAMPLE_RATE)
         .title("2-Band LR4 Crossover (fc = 1 kHz)")
