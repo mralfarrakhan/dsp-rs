@@ -34,6 +34,7 @@ impl<F: Float, P: Processor<F>, const CHANNELS: usize> MultiChannelProcessor<F, 
         }
     }
 
+    #[inline]
     pub fn process(&mut self, buffer: &mut Buffer<'_, F>) {
         for (p, b) in self.processors.iter_mut().zip(buffer.channels_iter_mut()) {
             p.process_buffer(b);
