@@ -1,6 +1,6 @@
 use num_traits::{Float, FloatConst};
 
-use crate::{denormals::Denormal, processor::Processor};
+use crate::{common::Denormal, processor::Processor};
 
 #[derive(Debug, Clone, Copy)]
 pub struct FirstOrderLowPass<F: Float> {
