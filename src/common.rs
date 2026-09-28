@@ -6,6 +6,10 @@ use crate::processor::Processor;
 pub struct Nil;
 
 impl<F: Float> Processor<F> for Nil {
+    type Parameters = ();
+
+    fn set_parameter(&mut self, _: Self::Parameters) {}
+
     #[inline]
     fn process_sample(&mut self, sample: F) -> F {
         sample

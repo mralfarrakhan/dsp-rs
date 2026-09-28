@@ -3,7 +3,7 @@ mod common;
 use common::dsp_test;
 use dsp_rs::{
     Nil, chain,
-    filter::{FirstOrderLowPass, SecondOrderHighPass, SecondOrderLowPass},
+    filter::{FirstOrderFilter, SecondOrderFilter},
     gain::Gain,
     parallel,
     processor::Processor,
@@ -58,12 +58,12 @@ fn test_parallel_nested_three() {
 #[test]
 fn test_parallel_buffer_equivalence() {
     let mut p1 = parallel!(
-        FirstOrderLowPass::new(SAMPLE_RATE, 1000.0),
-        FirstOrderLowPass::new(SAMPLE_RATE, 5000.0),
+        FirstOrderFilter::new_lpf(SAMPLE_RATE, 1000.0),
+        FirstOrderFilter::new_lpf(SAMPLE_RATE, 5000.0),
     );
     let mut p2 = parallel!(
-        FirstOrderLowPass::new(SAMPLE_RATE, 1000.0),
-        FirstOrderLowPass::new(SAMPLE_RATE, 5000.0),
+        FirstOrderFilter::new_lpf(SAMPLE_RATE, 1000.0),
+        FirstOrderFilter::new_lpf(SAMPLE_RATE, 5000.0),
     );
 
     let input = [0.5f32, -0.25, 0.8, -0.1, 0.0, 0.3];
@@ -81,13 +81,13 @@ fn plot_parallel() {
     let cutoff = 1_000.0;
 
     let lpf = chain!(
-        SecondOrderLowPass::new(SAMPLE_RATE, cutoff),
-        SecondOrderLowPass::new(SAMPLE_RATE, cutoff),
+        SecondOrderFilter::new_lpf(SAMPLE_RATE, cutoff),
+        SecondOrderFilter::new_lpf(SAMPLE_RATE, cutoff),
     );
 
     let hpf = chain!(
-        SecondOrderHighPass::new(SAMPLE_RATE, cutoff),
-        SecondOrderHighPass::new(SAMPLE_RATE, cutoff),
+        SecondOrderFilter::new_hpf(SAMPLE_RATE, cutoff),
+        SecondOrderFilter::new_hpf(SAMPLE_RATE, cutoff),
     );
 
     let parallel_filter = parallel!(hpf, lpf);
@@ -112,14 +112,14 @@ fn bench_perf() {
     let iters = 100;
     let mut buf = vec![0.5f32; SAMPLE_SIZE];
 
-    let mut single = FirstOrderLowPass::new(SAMPLE_RATE, 10_000.0);
+    let mut single = FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0);
     let mut ch = chain!(
-        FirstOrderLowPass::new(SAMPLE_RATE, 10_000.0),
-        FirstOrderLowPass::new(SAMPLE_RATE, 10_000.0),
+        FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0),
+        FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0),
     );
     let mut par = parallel!(
-        FirstOrderLowPass::new(SAMPLE_RATE, 10_000.0),
-        FirstOrderLowPass::new(SAMPLE_RATE, 10_000.0),
+        FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0),
+        FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0),
     );
 
     // Warmup

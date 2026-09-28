@@ -20,6 +20,10 @@ where
     H: Processor<F>,
     T: Processor<F>,
 {
+    type Parameters = ();
+
+    fn set_parameter(&mut self, _: Self::Parameters) {}
+
     #[inline]
     fn process_sample(&mut self, sample: F) -> F {
         let sample = self.head.process_sample(sample);

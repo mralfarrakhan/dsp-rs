@@ -5,7 +5,7 @@ use std::ops::Div;
 use common::dsp_test;
 use dsp_rs::{
     chain,
-    filter::{FirstOrderLowPass, SecondOrderHighPass, SecondOrderLowPass},
+    filter::{FirstOrderFilter, SecondOrderFilter},
     processor::Processor,
 };
 
@@ -14,7 +14,7 @@ const SAMPLE_SIZE: usize = 65_536;
 
 #[test]
 fn plot_filter() {
-    let filter = FirstOrderLowPass::new(SAMPLE_RATE, 10_000.0);
+    let filter = FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0);
 
     dsp_test::response(filter, SAMPLE_RATE)
         .title("1st-Order Lowpass Filter (fc = 10 kHz)")
@@ -37,8 +37,8 @@ fn plot_chain() {
         );
 
     let chain_filter = chain!(
-        FirstOrderLowPass::new(SAMPLE_RATE, cutoff),
-        FirstOrderLowPass::new(SAMPLE_RATE, cutoff),
+        FirstOrderFilter::new_lpf(SAMPLE_RATE, cutoff),
+        FirstOrderFilter::new_lpf(SAMPLE_RATE, cutoff),
     );
 
     dsp_test::response(chain_filter, SAMPLE_RATE)
@@ -55,7 +55,7 @@ fn plot_chain() {
 
 #[test]
 fn plot_temporal_filter() {
-    let filter = FirstOrderLowPass::new(SAMPLE_RATE, 2_000.0);
+    let filter = FirstOrderFilter::new_lpf(SAMPLE_RATE, 2_000.0);
 
     dsp_test::temporal_response(filter, SAMPLE_RATE)
         .title("Lowpass Filter Temporal Response (fc = 2 kHz, 1 kHz Square)")
@@ -66,7 +66,7 @@ fn plot_temporal_filter() {
 
 #[test]
 fn plot_2nd_order_lpf() {
-    let filter = SecondOrderLowPass::new(SAMPLE_RATE, 10_000f32);
+    let filter = SecondOrderFilter::new_lpf(SAMPLE_RATE, 10_000f32);
 
     dsp_test::response(filter, SAMPLE_RATE)
         .title("2nd-Order Lowpass Filter (fc = 10 kHz)")
@@ -82,7 +82,7 @@ fn plot_2nd_order_lpf() {
 
 #[test]
 fn plot_2nd_order_hpf() {
-    let filter = SecondOrderHighPass::new(SAMPLE_RATE, 10_000f32);
+    let filter = SecondOrderFilter::new_hpf(SAMPLE_RATE, 10_000f32);
 
     dsp_test::response(filter, SAMPLE_RATE)
         .title("2nd-Order Highpass Filter (fc = 10 kHz)")
@@ -117,8 +117,12 @@ fn verify_2nd_order_hpf_10k() {
         let z_inv = z.inv();
         let z_inv2 = z_inv * z_inv;
 
-        let num = Complex::new(b_0, 0.0) + Complex::new(b_1, 0.0) * z_inv + Complex::new(b_2, 0.0) * z_inv2;
-        let den = Complex::new(1.0, 0.0) + Complex::new(a_1, 0.0) * z_inv + Complex::new(a_2, 0.0) * z_inv2;
+        let num = Complex::new(b_0, 0.0)
+            + Complex::new(b_1, 0.0) * z_inv
+            + Complex::new(b_2, 0.0) * z_inv2;
+        let den = Complex::new(1.0, 0.0)
+            + Complex::new(a_1, 0.0) * z_inv
+            + Complex::new(a_2, 0.0) * z_inv2;
         let h = num / den;
 
         let mag_db = 20.0 * h.norm().log10();
@@ -127,21 +131,42 @@ fn verify_2nd_order_hpf_10k() {
     };
 
     println!("\n=== 2nd-Order HPF (fc = 10 kHz, fs = 48 kHz) ===");
-    for &f in &[100.0, 1_000.0, 5_000.0, 10_000.0, 15_000.0, 20_000.0, 24_000.0] {
+    for &f in &[
+        100.0, 1_000.0, 5_000.0, 10_000.0, 15_000.0, 20_000.0, 24_000.0,
+    ] {
         let (db, phase) = eval_h(f);
-        println!("f = {:>5.0} Hz | Mag = {:>7.2} dB | Phase = {:>6.1}°", f, db, phase);
+        println!(
+            "f = {:>5.0} Hz | Mag = {:>7.2} dB | Phase = {:>6.1}°",
+            f, db, phase
+        );
     }
 
     let (db_cutoff, phase_cutoff) = eval_h(10_000.0);
-    assert!((db_cutoff - (-3.0103)).abs() < 1e-3, "Expected -3.01 dB at cutoff, got {}", db_cutoff);
-    assert!((phase_cutoff - 90.0).abs() < 1e-2, "Expected +90 deg phase at cutoff, got {}", phase_cutoff);
+    assert!(
+        (db_cutoff - (-3.0103)).abs() < 1e-3,
+        "Expected -3.01 dB at cutoff, got {}",
+        db_cutoff
+    );
+    assert!(
+        (phase_cutoff - 90.0).abs() < 1e-2,
+        "Expected +90 deg phase at cutoff, got {}",
+        phase_cutoff
+    );
 
     let (db_nyquist, phase_nyquist) = eval_h(24_000.0);
-    assert!((db_nyquist - 0.0).abs() < 1e-3, "Expected 0 dB at Nyquist, got {}", db_nyquist);
-    assert!((phase_nyquist - 0.0).abs() < 1e-2, "Expected 0 deg phase at Nyquist, got {}", phase_nyquist);
+    assert!(
+        (db_nyquist - 0.0).abs() < 1e-3,
+        "Expected 0 dB at Nyquist, got {}",
+        db_nyquist
+    );
+    assert!(
+        (phase_nyquist - 0.0).abs() < 1e-2,
+        "Expected 0 deg phase at Nyquist, got {}",
+        phase_nyquist
+    );
 
     // Verify time-domain simulation of SecondOrderHighPass matches analytical transfer function
-    let mut filter = SecondOrderHighPass::new(sample_rate, cutoff);
+    let mut filter = SecondOrderFilter::new_hpf(sample_rate, cutoff);
     let n_fft = 16_384;
     let mut impulse_resp: Vec<Complex<f32>> = (0..n_fft)
         .map(|i| {
@@ -162,7 +187,9 @@ fn verify_2nd_order_hpf_10k() {
         assert!(
             (sim_mag_db - expected_mag_db).abs() < 0.05,
             "Mismatch at {} Hz: sim = {:.2} dB, expected = {:.2} dB",
-            actual_f, sim_mag_db, expected_mag_db
+            actual_f,
+            sim_mag_db,
+            expected_mag_db
         );
     }
 }

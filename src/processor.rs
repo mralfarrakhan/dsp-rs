@@ -5,6 +5,10 @@ use num_traits::Float;
 use crate::buffer::Buffer;
 
 pub trait Processor<F: Float>: Clone + Copy {
+    type Parameters: Clone + Copy;
+
+    fn set_parameter(&mut self, parameters: Self::Parameters);
+
     fn process_sample(&mut self, sample: F) -> F;
 
     fn process_buffer(&mut self, buffer: &mut [F])
