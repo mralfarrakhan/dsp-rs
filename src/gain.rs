@@ -23,7 +23,7 @@ impl<F: Float> Gain<F> {
 impl<F: Float> Processor<F> for Gain<F> {
     type Parameters = GainParameters<F>;
 
-    fn set_parameter(&mut self, parameters: Self::Parameters) {
+    fn set_parameters(&mut self, parameters: Self::Parameters) {
         self.parameters = parameters
     }
 

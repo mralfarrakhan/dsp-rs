@@ -22,7 +22,7 @@ where
 {
     type Parameters = ();
 
-    fn set_parameter(&mut self, _: Self::Parameters) {}
+    fn set_parameters(&mut self, _: Self::Parameters) {}
 
     #[inline]
     fn process_sample(&mut self, sample: F) -> F {

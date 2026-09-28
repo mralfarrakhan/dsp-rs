@@ -37,7 +37,7 @@ where
 impl<F: Float> Processor<F> for FirstOrderFilter<F> {
     type Parameters = FirstOrderFilterParameters<F>;
 
-    fn set_parameter(&mut self, parameters: Self::Parameters) {
+    fn set_parameters(&mut self, parameters: Self::Parameters) {
         self.parameters = parameters;
     }
 
@@ -144,7 +144,7 @@ where
 impl<F: Float> Processor<F> for SecondOrderFilter<F> {
     type Parameters = SecondOrderFilterParameters<F>;
 
-    fn set_parameter(&mut self, parameters: Self::Parameters) {
+    fn set_parameters(&mut self, parameters: Self::Parameters) {
         self.parameters = parameters;
     }
 
