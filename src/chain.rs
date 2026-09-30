@@ -47,7 +47,7 @@ macro_rules! chain {
     };
 
     ($single:expr $(,)?) => {
-        $single
+        $crate::chain::Chain::new($single, $crate::Nil)
     };
 
     ($head:expr, $($tail:expr),+ $(,)?) => {

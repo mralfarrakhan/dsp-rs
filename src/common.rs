@@ -23,6 +23,31 @@ impl<F: Float> Processor<F> for Nil {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub struct Zero;
+
+impl<F: Float> Processor<F> for Zero {
+    type Parameters = ();
+
+    #[inline]
+    fn set_parameters(&mut self, _: Self::Parameters) {}
+
+    #[inline]
+    fn process_sample(&mut self, _sample: F) -> F {
+        F::zero()
+    }
+
+    #[inline]
+    fn process_buffer(&mut self, buffer: &mut [F])
+    where
+        F: Copy,
+    {
+        for sample in buffer {
+            *sample = F::zero();
+        }
+    }
+}
+
 pub trait Denormal: Float {
     #[inline]
     fn zapgremlins(self) -> Self {

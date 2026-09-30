@@ -43,11 +43,11 @@ where
 #[macro_export]
 macro_rules! parallel {
     () => {
-        $crate::Nil
+        $crate::Zero
     };
 
     ($single:expr $(,)?) => {
-        $single
+        $crate::parallel::Parallel::new($single, $crate::Zero)
     };
 
     ($head:expr, $($tail:expr),+ $(,)?) => {

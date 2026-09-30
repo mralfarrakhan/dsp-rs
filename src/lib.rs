@@ -10,5 +10,5 @@ pub mod parallel;
 pub mod processor;
 
 pub use chain::Chain;
-pub use common::Nil;
+pub use common::{Nil, Zero};
 pub use parallel::Parallel;

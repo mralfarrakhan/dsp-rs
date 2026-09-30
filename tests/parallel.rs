@@ -2,7 +2,7 @@ mod common;
 
 use common::dsp_test;
 use dsp_rs::{
-    Nil, chain,
+    Zero, chain,
     filter::{FirstOrderFilter, SecondOrderFilter},
     gain::Gain,
     parallel,
@@ -15,17 +15,19 @@ const SAMPLE_SIZE: usize = 65_536;
 #[test]
 fn test_parallel_empty() {
     let mut p = parallel!();
-    assert_eq!(p, Nil);
-    assert_eq!(p.process_sample(2.5), 2.5);
+    assert_eq!(p, Zero);
+    assert_eq!(p.process_sample(2.5), 0.0);
 
     let mut buf = [1.0, 2.0, 3.0];
     p.process_buffer(&mut buf);
-    assert_eq!(buf, [1.0, 2.0, 3.0]);
+    assert_eq!(buf, [0.0, 0.0, 0.0]);
 }
 
 #[test]
 fn test_parallel_single() {
     let mut p = parallel!(Gain::new(2.0));
+    assert_eq!(p.head, Gain::new(2.0));
+    assert_eq!(p.tail, Zero);
     assert_eq!(p.process_sample(3.0), 6.0);
 
     let mut buf = [1.0, 2.0, 3.0];
@@ -53,6 +55,15 @@ fn test_parallel_nested_three() {
     let mut buf = [1.0, 2.0, -1.0];
     p.process_buffer(&mut buf);
     assert_eq!(buf, [6.0, 12.0, -6.0]);
+}
+
+#[test]
+fn test_parallel_hlist_structure() {
+    let p = parallel!(Gain::new(2.0), Gain::new(3.0));
+    // Canonical HList: Parallel<Gain, Parallel<Gain, Zero>>
+    assert_eq!(p.head, Gain::new(2.0));
+    assert_eq!(p.tail.head, Gain::new(3.0));
+    assert_eq!(p.tail.tail, Zero);
 }
 
 #[test]

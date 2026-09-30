@@ -2,12 +2,12 @@ use num_traits::Float;
 
 use crate::processor::Processor;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GainParameters<F: Float> {
     pub gain: F,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Gain<F: Float> {
     parameters: GainParameters<F>,
 }
