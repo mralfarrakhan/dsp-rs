@@ -115,7 +115,7 @@ fn plot_parallel() {
     let parallel_filter = parallel!(first_band, second_band, third_band);
 
     dsp_test::response(parallel_filter, SAMPLE_RATE)
-        .title("2-Band LR4 Crossover (fc = 1 kHz)")
+        .title("3-Band LR4 Crossover (fcl = 1 kHz, fcu = 10kHz)")
         .benchmark()
         .show_phase()
         .db()

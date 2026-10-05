@@ -1,11 +1,6 @@
 mod common;
 
-use dsp_rs::{
-    Nil, chain,
-    filter::FirstOrderFilter,
-    gain::Gain,
-    processor::Processor,
-};
+use dsp_rs::{Nil, chain, filter::FirstOrderFilter, gain::Gain, processor::Processor};
 
 const SAMPLE_RATE: f32 = 48_000.0;
 
