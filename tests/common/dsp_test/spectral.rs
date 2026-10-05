@@ -35,6 +35,7 @@ pub enum FrequencyScale {
     Log,
 }
 
+#[allow(unused)]
 pub fn response<P>(processor: P, sample_rate: f32) -> SpectralResponse<P>
 where
     P: Processor<f32>,
@@ -287,8 +288,14 @@ where
         let phase_range = match (self.min_phase, self.max_phase) {
             (Some(min), Some(max)) => min..max,
             _ => {
-                let min_p = unwrapped_phases.iter().copied().fold(f32::INFINITY, f32::min);
-                let max_p = unwrapped_phases.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+                let min_p = unwrapped_phases
+                    .iter()
+                    .copied()
+                    .fold(f32::INFINITY, f32::min);
+                let max_p = unwrapped_phases
+                    .iter()
+                    .copied()
+                    .fold(f32::NEG_INFINITY, f32::max);
 
                 if min_p.is_finite() && max_p.is_finite() && (min_p < -180.0 || max_p > 180.0) {
                     let grid = 90.0;
