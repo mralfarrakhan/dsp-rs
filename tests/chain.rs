@@ -1,6 +1,8 @@
 mod common;
 
-use dsp_rs::{Nil, chain, filter::FirstOrderFilter, gain::Gain, processor::Processor};
+use dsp_rs::{
+    BiquadFilter, Coefficients, FilterType, Nil, chain, gain::Gain, processor::Processor,
+};
 
 const SAMPLE_RATE: f32 = 48_000.0;
 
@@ -60,14 +62,15 @@ fn test_chain_hlist_structure() {
 
 #[test]
 fn test_chain_buffer_equivalence() {
-    let mut c1 = chain!(
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 1000.0),
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 5000.0),
+    let lpf1 = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 1000.0).unwrap(),
     );
-    let mut c2 = chain!(
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 1000.0),
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 5000.0),
+    let lpf2 = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 5000.0).unwrap(),
     );
+
+    let mut c1 = chain!(lpf1, lpf2);
+    let mut c2 = chain!(lpf1, lpf2);
 
     let input = [0.5f32, -0.25, 0.8, -0.1, 0.0, 0.3];
     let mut buf = input;

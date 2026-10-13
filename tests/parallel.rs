@@ -2,10 +2,7 @@ mod common;
 
 use common::dsp_test;
 use dsp_rs::{
-    Zero, chain,
-    filter::{FirstOrderFilter, SecondOrderFilter},
-    gain::Gain,
-    parallel,
+    BiquadFilter, Coefficients, FilterType, Zero, chain, gain::Gain, parallel,
     processor::Processor,
 };
 
@@ -68,14 +65,15 @@ fn test_parallel_hlist_structure() {
 
 #[test]
 fn test_parallel_buffer_equivalence() {
-    let mut p1 = parallel!(
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 1000.0),
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 5000.0),
+    let lpf1 = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 1000.0).unwrap(),
     );
-    let mut p2 = parallel!(
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 1000.0),
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 5000.0),
+    let lpf2 = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 5000.0).unwrap(),
     );
+
+    let mut p1 = parallel!(lpf1, lpf2);
+    let mut p2 = parallel!(lpf1, lpf2);
 
     let input = [0.5f32, -0.25, 0.8, -0.1, 0.0, 0.3];
     let mut buf = input;
@@ -92,25 +90,27 @@ fn plot_parallel() {
     let lower_crossover = 1_000.0;
     let upper_crossover = 10_000.0;
 
-    let first_band = chain!(
-        SecondOrderFilter::new_lpf(SAMPLE_RATE, lower_crossover),
-        SecondOrderFilter::new_lpf(SAMPLE_RATE, lower_crossover),
-        SecondOrderFilter::new_apf(SAMPLE_RATE, upper_crossover),
+    let lpf_low = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, lower_crossover).unwrap(),
+    );
+    let hpf_low = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::HighPass, SAMPLE_RATE, lower_crossover).unwrap(),
+    );
+    let lpf_high = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, upper_crossover).unwrap(),
+    );
+    let hpf_high = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::HighPass, SAMPLE_RATE, upper_crossover).unwrap(),
+    );
+    let apf_high = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::AllPass, SAMPLE_RATE, upper_crossover).unwrap(),
     );
 
-    let second_band = chain!(
-        SecondOrderFilter::new_hpf(SAMPLE_RATE, lower_crossover),
-        SecondOrderFilter::new_hpf(SAMPLE_RATE, lower_crossover),
-        SecondOrderFilter::new_lpf(SAMPLE_RATE, upper_crossover),
-        SecondOrderFilter::new_lpf(SAMPLE_RATE, upper_crossover),
-    );
+    let first_band = chain!(lpf_low, lpf_low, apf_high);
 
-    let third_band = chain!(
-        SecondOrderFilter::new_hpf(SAMPLE_RATE, lower_crossover),
-        SecondOrderFilter::new_hpf(SAMPLE_RATE, lower_crossover),
-        SecondOrderFilter::new_hpf(SAMPLE_RATE, upper_crossover),
-        SecondOrderFilter::new_hpf(SAMPLE_RATE, upper_crossover),
-    );
+    let second_band = chain!(hpf_low, hpf_low, lpf_high, lpf_high);
+
+    let third_band = chain!(hpf_low, hpf_low, hpf_high, hpf_high);
 
     let parallel_filter = parallel!(first_band, second_band, third_band);
 
@@ -134,15 +134,12 @@ fn bench_perf() {
     let iters = 100;
     let mut buf = vec![0.5f32; SAMPLE_SIZE];
 
-    let mut single = FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0);
-    let mut ch = chain!(
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0),
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0),
+    let lpf = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 10_000.0).unwrap(),
     );
-    let mut par = parallel!(
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0),
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0),
-    );
+    let mut single = lpf;
+    let mut ch = chain!(lpf, lpf);
+    let mut par = parallel!(lpf, lpf);
 
     // Warmup
     single.process_buffer(&mut buf);
@@ -173,7 +170,7 @@ fn bench_perf() {
         SAMPLE_SIZE
     );
     println!(
-        "Single 1st-order:  {:>8.2?} | {:>6.2} MSa/s ({:.2} ns/sample)",
+        "Single Biquad:     {:>8.2?} | {:>6.2} MSa/s ({:.2} ns/sample)",
         dur_single,
         (total_samples / dur_single.as_secs_f64()) / 1e6,
         (dur_single.as_secs_f64() * 1e9) / total_samples

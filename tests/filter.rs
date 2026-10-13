@@ -4,28 +4,53 @@ use std::ops::Div;
 
 use common::dsp_test;
 use dsp_rs::{
-    chain,
-    filter::{FirstOrderFilter, SecondOrderFilter},
-    processor::Processor,
+    BiquadFilter, Coefficients, FilterType, chain, processor::Processor,
 };
 
 const SAMPLE_RATE: f32 = 48_000.0;
 const SAMPLE_SIZE: usize = 65_536;
 
 #[test]
-fn plot_filter() {
-    let filter = FirstOrderFilter::new_lpf(SAMPLE_RATE, 10_000.0);
+fn test_coefficients_validation() {
+    // Valid parameters
+    assert!(Coefficients::from_params(FilterType::LowPass, SAMPLE_RATE, 1000.0, 0.707).is_some());
+    assert!(Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 1000.0).is_some());
 
-    dsp_test::response(filter, SAMPLE_RATE)
-        .title("1st-Order Lowpass Filter (fc = 10 kHz)")
-        .benchmark()
-        .show_phase()
-        .db()
-        .samples(SAMPLE_SIZE)
-        .magnitude_range(-10.0, 10.0)
-        .log()
-        .frequency_range(20.0, 20_000.0)
-        .save("test_output/lowpass.png");
+    // Invalid: sample rate <= 0
+    assert!(Coefficients::from_params(FilterType::LowPass, 0.0, 1000.0, 0.707).is_none());
+    assert!(Coefficients::from_params(FilterType::LowPass, -48_000.0, 1000.0, 0.707).is_none());
+
+    // Invalid: cutoff <= 0
+    assert!(Coefficients::from_params(FilterType::LowPass, SAMPLE_RATE, 0.0, 0.707).is_none());
+    assert!(Coefficients::from_params(FilterType::LowPass, SAMPLE_RATE, -100.0, 0.707).is_none());
+
+    // Invalid: cutoff >= Nyquist
+    assert!(Coefficients::from_params(FilterType::LowPass, SAMPLE_RATE, 24_000.0, 0.707).is_none());
+    assert!(Coefficients::from_params(FilterType::LowPass, SAMPLE_RATE, 25_000.0, 0.707).is_none());
+
+    // Invalid: q <= 0
+    assert!(Coefficients::from_params(FilterType::LowPass, SAMPLE_RATE, 1000.0, 0.0).is_none());
+    assert!(Coefficients::from_params(FilterType::LowPass, SAMPLE_RATE, 1000.0, -0.5).is_none());
+}
+
+#[test]
+fn test_biquad_reset_and_set_parameters() {
+    let coeffs1 = Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 1000.0).unwrap();
+    let coeffs2 = Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 5000.0).unwrap();
+
+    let mut filter = BiquadFilter::new(coeffs1);
+    let out1 = filter.process_sample(1.0);
+    assert!(out1 != 0.0);
+
+    // Filter now has internal state
+    filter.reset();
+    // After reset, processing 0.0 should output 0.0
+    assert_eq!(filter.process_sample(0.0), 0.0);
+
+    // Update parameters
+    filter.set_parameters(coeffs2);
+    let out2 = filter.process_sample(1.0);
+    assert!(out2 != 0.0);
 }
 
 #[test]
@@ -36,10 +61,11 @@ fn plot_chain() {
                 .div((2f32.sqrt() - 1f32).sqrt()),
         );
 
-    let chain_filter = chain!(
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, cutoff),
-        FirstOrderFilter::new_lpf(SAMPLE_RATE, cutoff),
+    let lpf = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, cutoff).unwrap(),
     );
+
+    let chain_filter = chain!(lpf, lpf);
 
     dsp_test::response(chain_filter, SAMPLE_RATE)
         .title("Chained Lowpass Filter (fc = 10 kHz)")
@@ -55,7 +81,9 @@ fn plot_chain() {
 
 #[test]
 fn plot_temporal_filter() {
-    let filter = FirstOrderFilter::new_lpf(SAMPLE_RATE, 2_000.0);
+    let filter = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 2_000.0).unwrap(),
+    );
 
     dsp_test::temporal_response(filter, SAMPLE_RATE)
         .title("Lowpass Filter Temporal Response (fc = 2 kHz, 1 kHz Square)")
@@ -66,7 +94,9 @@ fn plot_temporal_filter() {
 
 #[test]
 fn plot_2nd_order_lpf() {
-    let filter = SecondOrderFilter::new_lpf(SAMPLE_RATE, 10_000f32);
+    let filter = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 10_000f32).unwrap(),
+    );
 
     dsp_test::response(filter, SAMPLE_RATE)
         .title("2nd-Order Lowpass Filter (fc = 10 kHz)")
@@ -82,7 +112,9 @@ fn plot_2nd_order_lpf() {
 
 #[test]
 fn plot_2nd_order_hpf() {
-    let filter = SecondOrderFilter::new_hpf(SAMPLE_RATE, 10_000f32);
+    let filter = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::HighPass, SAMPLE_RATE, 10_000f32).unwrap(),
+    );
 
     dsp_test::response(filter, SAMPLE_RATE)
         .title("2nd-Order Highpass Filter (fc = 10 kHz)")
@@ -165,8 +197,9 @@ fn verify_2nd_order_hpf_10k() {
         phase_nyquist
     );
 
-    // Verify time-domain simulation of SecondOrderHighPass matches analytical transfer function
-    let mut filter = SecondOrderFilter::new_hpf(sample_rate, cutoff);
+    // Verify time-domain simulation of BiquadFilter matches analytical transfer function
+    let coeffs = Coefficients::butterworth(FilterType::HighPass, sample_rate, cutoff).unwrap();
+    let mut filter = BiquadFilter::new(coeffs);
     let n_fft = 16_384;
     let mut impulse_resp: Vec<Complex<f32>> = (0..n_fft)
         .map(|i| {
