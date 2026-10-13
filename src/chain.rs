@@ -1,14 +1,22 @@
+//! Serial processor composition (Heterogeneous List).
+
 use num_traits::Float;
 
 use crate::processor::Processor;
 
+/// A heterogeneous list node composing two processors in series.
+///
+/// Output of `head` is routed directly into the input of `tail`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Chain<H, T> {
+    /// The first processor in the chain.
     pub head: H,
+    /// The remaining processor(s) in the chain.
     pub tail: T,
 }
 
 impl<H, T> Chain<H, T> {
+    /// Creates a new serial chain of two processors.
     pub const fn new(head: H, tail: T) -> Self {
         Self { head, tail }
     }
@@ -44,6 +52,18 @@ where
     }
 }
 
+/// Constructs a static serial pipeline from multiple processors.
+///
+/// Terminates on [`Nil`](crate::Nil) (identity pass-through).
+///
+/// # Example
+///
+/// ```rust
+/// use dsp_rs::{Gain, chain, Processor};
+///
+/// let mut pipeline = chain!(Gain::new(2.0f32), Gain::new(3.0f32));
+/// assert_eq!(pipeline.process_sample(1.0), 6.0);
+/// ```
 #[macro_export]
 macro_rules! chain {
     () => {

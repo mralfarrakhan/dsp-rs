@@ -1,24 +1,44 @@
+//! Digital biquad filters and coefficient generation.
+//!
+//! Provides a 2nd-order Infinite Impulse Response (IIR) [`BiquadFilter`] implemented
+//! in Direct Form II Transposed (DF2T) topology with denormal protection.
+
 use num_traits::{Float, FloatConst};
 
 use crate::{common::Denormal, processor::Processor};
 
+/// Target response type for biquad filter coefficient calculation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FilterType {
+    /// Low-pass filter: attenuates frequencies above cutoff.
     LowPass,
+    /// High-pass filter: attenuates frequencies below cutoff.
     HighPass,
+    /// All-pass filter: preserves all magnitudes while altering phase.
     AllPass,
 }
 
+/// Normalized difference equation transfer coefficients for a 2nd-order IIR biquad filter.
+///
+/// Represents the transfer function:
+///
+/// $$H(z) = \frac{b_0 + b_1 z^{-1} + b_2 z^{-2}}{1 + a_1 z^{-1} + a_2 z^{-2}}$$
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Coefficients<F: Float> {
+    /// Feedforward coefficient $b_0$
     pub b0: F,
+    /// Feedforward coefficient $b_1$
     pub b1: F,
+    /// Feedforward coefficient $b_2$
     pub b2: F,
+    /// Feedback coefficient $a_1$
     pub a1: F,
+    /// Feedback coefficient $a_2$
     pub a2: F,
 }
 
 impl<F: Float> Coefficients<F> {
+    /// Constructs raw biquad coefficients directly.
     pub const fn new(b0: F, b1: F, b2: F, a1: F, a2: F) -> Self {
         Self { b0, b1, b2, a1, a2 }
     }
@@ -28,6 +48,15 @@ impl<F> Coefficients<F>
 where
     F: Float + FloatConst,
 {
+    /// Calculates normalized biquad coefficients using the bilinear transform with pre-warping.
+    ///
+    /// # Parameters
+    /// - `filter_type`: LowPass, HighPass, or AllPass response.
+    /// - `sample_rate`: Sampling rate in Hz ($f_s > 0$).
+    /// - `cutoff`: Cutoff frequency in Hz ($0 < f_c < f_s / 2$).
+    /// - `q`: Quality factor / resonance ($Q > 0$).
+    ///
+    /// Returns `None` if any input parameter is invalid or non-positive.
     pub fn from_params(
         filter_type: FilterType,
         sample_rate: F,
@@ -78,6 +107,7 @@ where
         Some(Self { b0, b1, b2, a1, a2 })
     }
 
+    /// Calculates Butterworth coefficients ($Q = \frac{1}{\sqrt{2}} \approx 0.7071$) for maximally flat passband.
     pub fn butterworth(
         filter_type: FilterType,
         sample_rate: F,
@@ -88,6 +118,10 @@ where
     }
 }
 
+/// A 2nd-order Direct Form II Transposed IIR filter.
+///
+/// Features low quantization noise, minimal delay memory (2 state floats), and
+/// denormal flushing protection.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BiquadFilter<F: Float> {
     coefficients: Coefficients<F>,
@@ -96,6 +130,7 @@ pub struct BiquadFilter<F: Float> {
 }
 
 impl<F: Float> BiquadFilter<F> {
+    /// Creates a new biquad filter with the specified coefficients and zeroed state.
     pub fn new(coefficients: Coefficients<F>) -> Self {
         Self {
             coefficients,
@@ -104,6 +139,7 @@ impl<F: Float> BiquadFilter<F> {
         }
     }
 
+    /// Resets internal delay states (`s_1` and `s_2`) to zero.
     pub fn reset(&mut self) {
         self.s_1 = F::zero();
         self.s_2 = F::zero();

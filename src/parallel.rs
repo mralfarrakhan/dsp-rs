@@ -1,14 +1,20 @@
+//! Parallel processor composition and summing (Heterogeneous List).
+
 use num_traits::Float;
 
 use crate::processor::Processor;
 
+/// A heterogeneous list node executing two processors in parallel and summing their outputs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Parallel<H, T> {
+    /// The first branch processor.
     pub head: H,
+    /// The remaining branch processor(s).
     pub tail: T,
 }
 
 impl<H, T> Parallel<H, T> {
+    /// Creates a new parallel summing node of two processors.
     pub const fn new(head: H, tail: T) -> Self {
         Self { head, tail }
     }
@@ -44,6 +50,18 @@ where
     }
 }
 
+/// Constructs a static parallel summing pipeline from multiple processors.
+///
+/// Terminates on [`Zero`](crate::Zero) (additive identity).
+///
+/// # Example
+///
+/// ```rust
+/// use dsp_rs::{Gain, parallel, Processor};
+///
+/// let mut mixer = parallel!(Gain::new(0.5f32), Gain::new(0.2f32));
+/// assert_eq!(mixer.process_sample(2.0), 1.4);
+/// ```
 #[macro_export]
 macro_rules! parallel {
     () => {

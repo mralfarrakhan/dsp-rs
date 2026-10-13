@@ -65,7 +65,7 @@ fn test_multichannel_processor_parameters_and_reset() {
         Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 5000.0).unwrap();
 
     let lpf = BiquadFilter::new(coeffs1);
-    let mut mcp = MultiChannelProcessor::<f32, _, 2>::new(lpf);
+    let mut mcp = MultiChannelProcessor::<f32, _, 2>::new_uniform(lpf);
 
     // Check initial parameters across all channels
     assert_eq!(mcp.parameters(), [coeffs1, coeffs1]);
