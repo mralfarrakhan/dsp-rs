@@ -113,6 +113,10 @@ impl<F: Float> BiquadFilter<F> {
 impl<F: Float> Processor<F> for BiquadFilter<F> {
     type Parameters = Coefficients<F>;
 
+    fn parameters(&self) -> Self::Parameters {
+        self.coefficients
+    }
+
     fn set_parameters(&mut self, parameters: Self::Parameters) {
         self.coefficients = parameters;
     }
@@ -129,10 +133,7 @@ impl<F: Float> Processor<F> for BiquadFilter<F> {
     }
 
     #[inline]
-    fn process_buffer(&mut self, buffer: &mut [F])
-    where
-        F: Copy,
-    {
+    fn process_buffer(&mut self, buffer: &mut [F]) {
         let b0 = self.coefficients.b0;
         let b1 = self.coefficients.b1;
         let b2 = self.coefficients.b2;
@@ -151,5 +152,10 @@ impl<F: Float> Processor<F> for BiquadFilter<F> {
 
         self.s_1 = s_1;
         self.s_2 = s_2;
+    }
+
+    fn reset(&mut self) {
+        self.s_1 = F::zero();
+        self.s_2 = F::zero();
     }
 }

@@ -22,6 +22,8 @@ where
 {
     type Parameters = ();
 
+    fn parameters(&self) -> Self::Parameters {}
+
     fn set_parameters(&mut self, _: Self::Parameters) {}
 
     #[inline]
@@ -30,13 +32,15 @@ where
     }
 
     #[inline]
-    fn process_buffer(&mut self, buffer: &mut [F])
-    where
-        F: Copy,
-    {
+    fn process_buffer(&mut self, buffer: &mut [F]) {
         for sample in buffer {
             *sample = self.process_sample(*sample);
         }
+    }
+
+    fn reset(&mut self) {
+        self.head.reset();
+        self.tail.reset();
     }
 }
 

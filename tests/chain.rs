@@ -81,3 +81,14 @@ fn test_chain_buffer_equivalence() {
         assert!((buf[i] - expected).abs() < 1e-6);
     }
 }
+
+#[test]
+fn test_chain_reset() {
+    let lpf = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 1000.0).unwrap(),
+    );
+    let mut c = chain!(lpf, lpf);
+    let _ = c.process_sample(1.0);
+    c.reset();
+    assert_eq!(c.process_sample(0.0), 0.0);
+}

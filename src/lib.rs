@@ -12,6 +12,6 @@ pub use buffer::Buffer;
 pub use chain::Chain;
 pub use common::{Nil, Zero};
 pub use filter::{BiquadFilter, Coefficients, FilterType};
-pub use gain::Gain;
+pub use gain::{Gain, GainParameters};
 pub use parallel::Parallel;
 pub use processor::{MultiChannelProcessor, Processor};

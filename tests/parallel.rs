@@ -86,6 +86,17 @@ fn test_parallel_buffer_equivalence() {
 }
 
 #[test]
+fn test_parallel_reset() {
+    let lpf = BiquadFilter::new(
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 1000.0).unwrap(),
+    );
+    let mut p = parallel!(lpf, lpf);
+    let _ = p.process_sample(1.0);
+    p.reset();
+    assert_eq!(p.process_sample(0.0), 0.0);
+}
+
+#[test]
 fn plot_parallel() {
     let lower_crossover = 1_000.0;
     let upper_crossover = 10_000.0;

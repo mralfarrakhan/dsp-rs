@@ -8,6 +8,8 @@ pub struct Nil;
 impl<F: Float> Processor<F> for Nil {
     type Parameters = ();
 
+    fn parameters(&self) -> Self::Parameters {}
+
     fn set_parameters(&mut self, _: Self::Parameters) {}
 
     #[inline]
@@ -16,11 +18,9 @@ impl<F: Float> Processor<F> for Nil {
     }
 
     #[inline]
-    fn process_buffer(&mut self, _buffer: &mut [F])
-    where
-        F: Copy,
-    {
-    }
+    fn process_buffer(&mut self, _buffer: &mut [F]) {}
+
+    fn reset(&mut self) {}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
@@ -28,6 +28,8 @@ pub struct Zero;
 
 impl<F: Float> Processor<F> for Zero {
     type Parameters = ();
+
+    fn parameters(&self) -> Self::Parameters {}
 
     #[inline]
     fn set_parameters(&mut self, _: Self::Parameters) {}
@@ -38,14 +40,13 @@ impl<F: Float> Processor<F> for Zero {
     }
 
     #[inline]
-    fn process_buffer(&mut self, buffer: &mut [F])
-    where
-        F: Copy,
-    {
+    fn process_buffer(&mut self, buffer: &mut [F]) {
         for sample in buffer {
             *sample = F::zero();
         }
     }
+
+    fn reset(&mut self) {}
 }
 
 pub trait Denormal: Float {

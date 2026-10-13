@@ -5,20 +5,21 @@ use num_traits::Float;
 use crate::buffer::Buffer;
 
 pub trait Processor<F: Float>: Clone + Copy {
-    type Parameters: Clone + Copy;
+    type Parameters: Copy;
+
+    fn parameters(&self) -> Self::Parameters;
 
     fn set_parameters(&mut self, parameters: Self::Parameters);
 
     fn process_sample(&mut self, sample: F) -> F;
 
-    fn process_buffer(&mut self, buffer: &mut [F])
-    where
-        F: Copy,
-    {
+    fn process_buffer(&mut self, buffer: &mut [F]) {
         for sample in buffer {
             *sample = self.process_sample(*sample)
         }
     }
+
+    fn reset(&mut self) {}
 }
 
 pub struct MultiChannelProcessor<F: Float, P: Processor<F>, const CHANNELS: usize> {
@@ -32,6 +33,22 @@ impl<F: Float, P: Processor<F>, const CHANNELS: usize> MultiChannelProcessor<F, 
             processors: [processor; CHANNELS],
             _marker: PhantomData,
         }
+    }
+
+    pub fn reset(&mut self) {
+        for p in &mut self.processors {
+            p.reset();
+        }
+    }
+
+    pub fn set_parameters(&mut self, parameters: P::Parameters) {
+        for p in &mut self.processors {
+            p.set_parameters(parameters);
+        }
+    }
+
+    pub fn parameters(&self) -> [P::Parameters; CHANNELS] {
+        core::array::from_fn(|i| self.processors[i].parameters())
     }
 
     #[inline]

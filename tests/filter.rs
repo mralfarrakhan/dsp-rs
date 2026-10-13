@@ -39,6 +39,7 @@ fn test_biquad_reset_and_set_parameters() {
     let coeffs2 = Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 5000.0).unwrap();
 
     let mut filter = BiquadFilter::new(coeffs1);
+    assert_eq!(filter.parameters(), coeffs1);
     let out1 = filter.process_sample(1.0);
     assert!(out1 != 0.0);
 
@@ -49,8 +50,41 @@ fn test_biquad_reset_and_set_parameters() {
 
     // Update parameters
     filter.set_parameters(coeffs2);
+    assert_eq!(filter.parameters(), coeffs2);
     let out2 = filter.process_sample(1.0);
     assert!(out2 != 0.0);
+}
+
+#[test]
+fn test_multichannel_processor_parameters_and_reset() {
+    use dsp_rs::{Buffer, MultiChannelProcessor};
+
+    let coeffs1 =
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 1000.0).unwrap();
+    let coeffs2 =
+        Coefficients::butterworth(FilterType::LowPass, SAMPLE_RATE, 5000.0).unwrap();
+
+    let lpf = BiquadFilter::new(coeffs1);
+    let mut mcp = MultiChannelProcessor::<f32, _, 2>::new(lpf);
+
+    // Check initial parameters across all channels
+    assert_eq!(mcp.parameters(), [coeffs1, coeffs1]);
+
+    // Broadcast new parameters
+    mcp.set_parameters(coeffs2);
+    assert_eq!(mcp.parameters(), [coeffs2, coeffs2]);
+
+    let mut data = [1.0f32; 8];
+    let mut buf = Buffer::new(&mut data, 2, 4).unwrap();
+    mcp.process(&mut buf);
+
+    mcp.reset();
+
+    let mut zero_data = [0.0f32; 8];
+    let mut zero_buf = Buffer::new(&mut zero_data, 2, 4).unwrap();
+    mcp.process(&mut zero_buf);
+
+    assert_eq!(zero_data, [0.0f32; 8]);
 }
 
 #[test]
